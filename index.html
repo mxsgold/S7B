@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S7B - SUB</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #12161b;
+    --panel: #181d23;
+    --panel-line: #2a3138;
+    --ink: #e7ecee;
+    --ink-dim: #8b969e;
+    --accent: #ffb020;
+    --accent-dim: rgba(255,176,32,.28);
+    --good: #4fd1ae;
+    --good-dim: rgba(79,209,174,.28);
+    --bad: #ff6b6b;
+    --font-d: 'Space Grotesk', sans-serif;
+    --font-m: 'IBM Plex Mono', monospace;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-d);
+    line-height: 1.5;
+    padding: 28px 18px 60px;
+  }
+  .wrap{ max-width: 640px; margin: 0 auto; }
+
+  header{ margin-bottom: 22px; }
+  .kicker{
+    font-family: var(--font-m);
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: .02em;
+    margin-bottom: 10px;
+  }
+  h1{
+    font-size: 28px;
+    font-weight: 600;
+    margin: 0 0 10px;
+    letter-spacing: -0.01em;
+  }
+  .lede{
+    color: var(--ink-dim);
+    font-size: 15px;
+    max-width: 52ch;
+    margin: 0;
+  }
+
+  .steps{
+    display:flex;
+    gap: 14px;
+    margin: 22px 0;
+    padding: 0;
+    list-style: none;
+  }
+  .steps li{
+    flex:1;
+    font-size: 13px;
+    color: var(--ink-dim);
+    border-top: 2px solid var(--panel-line);
+    padding-top: 8px;
+  }
+  .steps li.active{ color: var(--ink); border-top-color: var(--accent); }
+  .steps li b{ display:block; font-family: var(--font-m); color: var(--ink); font-size: 12px; margin-bottom: 2px;}
+  .steps li.active b{ color: var(--accent); }
+
+  .viewport{
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3/4;
+    background: #000;
+    border: 1px solid var(--panel-line);
+    overflow: hidden;
+  }
+  .viewport video, .viewport canvas{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    object-fit: cover;
+    display:none;
+  }
+  .viewport video{ transform: scaleX(-1); }
+  .corner{
+    position:absolute; width:22px; height:22px;
+    border-color: var(--accent);
+    border-style: solid;
+    border-width: 0;
+    z-index: 3;
+    opacity: .8;
+    pointer-events:none;
+  }
+  .corner.tl{ top:10px; left:10px; border-top-width:2px; border-left-width:2px; }
+  .corner.tr{ top:10px; right:10px; border-top-width:2px; border-right-width:2px; }
+  .corner.bl{ bottom:10px; left:10px; border-bottom-width:2px; border-left-width:2px; }
+  .corner.br{ bottom:10px; right:10px; border-bottom-width:2px; border-right-width:2px; }
+
+  .status-line{
+    position:absolute; left:0; right:0; bottom:0;
+    padding: 8px 12px;
+    font-family: var(--font-m);
+    font-size: 11.5px;
+    color: var(--ink-dim);
+    background: linear-gradient(transparent, rgba(0,0,0,.65));
+    z-index: 4;
+  }
+
+  .controls{
+    display:flex; flex-wrap: wrap; gap: 10px;
+    margin-top: 14px;
+  }
+  button, .filebtn{
+    font-family: var(--font-d);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    padding: 11px 16px;
+    cursor: pointer;
+    transition: border-color .15s ease;
+  }
+  button:hover, .filebtn:hover{ border-color: var(--accent); }
+  button:disabled{ opacity: .4; cursor: default; }
+  button:disabled:hover{ border-color: var(--panel-line); }
+  button.primary{
+    background: var(--accent);
+    color: #201400;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  button.primary:hover{ border-color: var(--accent); }
+  input[type=file]{ display:none; }
+
+  .note{
+    font-size: 13px;
+    color: var(--ink-dim);
+    margin-top: 14px;
+    border-left: 2px solid var(--panel-line);
+    padding-left: 12px;
+  }
+
+  .results{ margin-top: 30px; display:none; }
+  .index-row{
+    display:flex; align-items: baseline; gap: 16px;
+    border-top: 1px solid var(--panel-line);
+    border-bottom: 1px solid var(--panel-line);
+    padding: 18px 0;
+    margin-bottom: 22px;
+  }
+  .index-num{
+    font-family: var(--font-m);
+    font-size: 48px;
+    font-weight: 600;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .index-num span{ font-size: 20px; color: var(--ink-dim); }
+  .index-label{ font-size: 14px; color: var(--ink-dim); max-width: 34ch; }
+
+  .metric{ margin-bottom: 18px; }
+  .metric-head{
+    display:flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .metric-name{ font-size: 14px; }
+  .metric-score{ font-family: var(--font-m); font-size: 13px; color: var(--ink-dim); }
+  .bar-track{
+    height: 6px;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    position: relative;
+  }
+  .bar-fill{
+    height: 100%;
+    background: var(--good);
+  }
+  .metric-detail{
+    font-family: var(--font-m);
+    font-size: 11.5px;
+    color: var(--ink-dim);
+    margin-top: 5px;
+  }
+
+  .legend{
+    display:flex; gap: 16px; flex-wrap: wrap;
+    font-family: var(--font-m);
+    font-size: 11px;
+    color: var(--ink-dim);
+    margin-top: 10px;
+  }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .swatch{ width:10px; height:2px; display:inline-block; }
+
+  footer{
+    margin-top: 34px;
+    font-size: 12.5px;
+    color: var(--ink-dim);
+    border-top: 1px solid var(--panel-line);
+    padding-top: 14px;
+  }
+  a{ color: var(--good); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">геометрический разбор //</div>
+    <h1>Скан еблища</h1>
+    <p class="lede">Наводит 468 точек на фото и меряет симметрию и классические пропорции.</p>
+  </header>
+
+  <ul class="steps" id="steps">
+    <li class="active" data-step="1"><b>1</b>Включить камеру или загрузить фото</li>
+    <li data-step="2"><b>2</b>Снять кадр анфас</li>
+    <li data-step="3"><b>3</b>Разбор пропорций</li>
+  </ul>
+
+  <div class="viewport" id="viewport">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+    <div class="status-line" id="statusLine">загрузка модели распознавания…</div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="btnCamera">Включить камеру</button>
+    <label class="filebtn" for="fileInput">Загрузить фото</label>
+    <input type="file" id="fileInput" accept="image/*">
+    <button id="btnCapture" disabled>Сделать снимок и проанализировать</button>
+    <button id="btnRetake" style="display:none;">Переснять</button>
+  </div>
+
+  <p class="note" id="hint">Нужен кадр анфас, без сильного поворота головы, при ровном свете. Ничего не загружается на сервер — распознавание лица целиком идёт в вашем браузере.</p>
+
+  <div class="results" id="results">
+    <div class="index-row">
+      <div class="index-num" id="indexNum">–<span>/10</span></div>
+      <div class="index-label" id="indexLabel"></div>
+    </div>
+
+    <div id="metricsList"></div>
+
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--accent)"></i>вертикальные трети</span>
+      <span><i class="swatch" style="background:var(--good)"></i>горизонтальные пятые</span>
+      <span><i class="swatch" style="background:var(--ink-dim)"></i>средняя линия</span>
+    </div>
+  </div>
+
+  <footer>
+    Все линии на кадре — это ровно те отрезки, по которым посчитаны цифры ниже, без скрытой магии.
+    Natural асимметрия есть у всех лиц; итоговое число — забавная геометрическая метрика, а не диагноз и не приговор внешности.
+  </footer>
+
+</div>
+
+<script type="module">
+import { FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const statusLine = document.getElementById('statusLine');
+const btnCamera = document.getElementById('btnCamera');
+const btnCapture = document.getElementById('btnCapture');
+const btnRetake = document.getElementById('btnRetake');
+const fileInput = document.getElementById('fileInput');
+const hint = document.getElementById('hint');
+const resultsEl = document.getElementById('results');
+const indexNum = document.getElementById('indexNum');
+const indexLabel = document.getElementById('indexLabel');
+const metricsList = document.getElementById('metricsList');
+const stepEls = [...document.querySelectorAll('#steps li')];
+
+let faceLandmarker = null;
+let stream = null;
+let sourceReady = false; // true once video or image is drawable
+
+function setStep(n){
+  stepEls.forEach(li => li.classList.toggle('active', Number(li.dataset.step) === n));
+}
+
+async function initModel(){
+  try{
+    const fileset = await FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+    );
+    faceLandmarker = await FaceLandmarker.createFromOptions(fileset, {
+      baseOptions: {
+        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+        delegate: "GPU"
+      },
+      outputFaceBlendshapes: false,
+      runningMode: "IMAGE",
+      numFaces: 1
+    });
+    statusLine.textContent = "модель готова — включите камеру или загрузите фото";
+    btnCamera.disabled = false;
+  }catch(err){
+    console.error(err);
+    statusLine.textContent = "не удалось загрузить модель — проверьте подключение к интернету и обновите страницу";
+  }
+}
+
+btnCamera.addEventListener('click', async () => {
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    video.srcObject = stream;
+    video.style.display = 'block';
+    canvas.style.display = 'none';
+    resultsEl.style.display = 'none';
+    btnRetake.style.display = 'none';
+    btnCapture.disabled = false;
+    sourceReady = true;
+    statusLine.textContent = "смотрите прямо в камеру, лицо целиком в кадре";
+    setStep(2);
+  }catch(err){
+    console.error(err);
+    statusLine.textContent = "доступ к камере не получен — попробуйте загрузить фото";
+  }
+});
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const img = new Image();
+  img.onload = () => {
+    stopCamera();
+    const maxW = 640;
+    const scale = Math.min(1, maxW / img.width);
+    canvas.width = img.width * scale;
+    canvas.height = img.height * scale;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    video.style.display = 'none';
+    canvas.style.display = 'block';
+    resultsEl.style.display = 'none';
+    btnRetake.style.display = 'none';
+    btnCapture.disabled = false;
+    sourceReady = true;
+    statusLine.textContent = "фото загружено — нажмите «Сделать снимок и проанализировать»";
+    setStep(2);
+  };
+  img.src = URL.createObjectURL(file);
+});
+
+btnCapture.addEventListener('click', () => {
+  if(!faceLandmarker || !sourceReady) return;
+
+  if(video.style.display === 'block'){
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.save();
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1); // mirror to match what the user sees
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    video.style.display = 'none';
+    canvas.style.display = 'block';
+    stopCamera();
+  }
+
+  const result = faceLandmarker.detect(canvas);
+  btnCapture.disabled = true;
+  btnRetake.style.display = 'inline-block';
+
+  if(!result.faceLandmarks || result.faceLandmarks.length === 0){
+    statusLine.textContent = "лицо не найдено — переснимите анфас при более ровном свете";
+    hint.textContent = "Попробуйте кадр строго анфас, без наклона головы, с лицом на 60–80% кадра.";
+    return;
+  }
+
+  const lm = result.faceLandmarks[0].map(p => ({ x: p.x * canvas.width, y: p.y * canvas.height }));
+  const metrics = computeMetrics(lm);
+  drawOverlay(lm, metrics);
+  renderResults(metrics);
+  statusLine.textContent = "разбор готов";
+  setStep(3);
+});
+
+btnRetake.addEventListener('click', () => {
+  canvas.style.display = 'none';
+  video.style.display = 'none';
+  resultsEl.style.display = 'none';
+  btnRetake.style.display = 'none';
+  btnCapture.disabled = true;
+  sourceReady = false;
+  hint.textContent = "Нужен кадр анфас, без сильного поворота головы, при ровном свете. Ничего не загружается на сервер — распознавание лица целиком идёт в вашем браузере.";
+  statusLine.textContent = "включите камеру или загрузите фото ещё раз";
+  setStep(1);
+});
+
+function stopCamera(){
+  if(stream){
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+}
+
+// ---- landmark indices (canonical 468-point face mesh topology) ----
+const L = {
+  foreheadTop: 10,
+  chin: 152,
+  cheekLeft: 234,
+  cheekRight: 454,
+  eyeLOuter: 33, eyeLInner: 133,
+  eyeROuter: 263, eyeRInner: 362,
+  browL: 105, browR: 334,
+  noseBase: 2,
+  mouthL: 61, mouthR: 291
+};
+
+function dist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
+function mean(arr){ return arr.reduce((a,b)=>a+b,0) / arr.length; }
+function stdev(arr){ const m = mean(arr); return Math.sqrt(mean(arr.map(v => (v-m)**2))); }
+function clampScore(v){ return Math.max(1, Math.min(10, v)); }
+
+function computeMetrics(lm){
+  const faceWidth = dist(lm[L.cheekLeft], lm[L.cheekRight]);
+  const faceHeight = dist(lm[L.foreheadTop], lm[L.chin]);
+  const midX = (lm[L.foreheadTop].x + lm[L.chin].x) / 2;
+
+  // 1. symmetry: compare mirrored horizontal offsets of paired landmarks
+  const pairs = [
+    [L.eyeLOuter, L.eyeROuter], [L.eyeLInner, L.eyeRInner],
+    [L.browL, L.browR], [L.mouthL, L.mouthR],
+    [L.cheekLeft, L.cheekRight]
+  ];
+  const diffs = pairs.map(([a,b]) => Math.abs(Math.abs(lm[a].x - midX) - Math.abs(lm[b].x - midX)));
+  const symDeviation = mean(diffs) / faceWidth; // fraction of face width
+  const symScore = clampScore(10 - symDeviation * 40);
+
+  // 2. vertical thirds: forehead->brow, brow->nose base, nose base->chin
+  const browY = (lm[L.browL].y + lm[L.browR].y) / 2;
+  const t1 = browY - lm[L.foreheadTop].y;
+  const t2 = lm[L.noseBase].y - browY;
+  const t3 = lm[L.chin].y - lm[L.noseBase].y;
+  const thirdsCV = stdev([t1,t2,t3]) / mean([t1,t2,t3]);
+  const thirdsScore = clampScore(10 - thirdsCV * 22);
+
+  // 3. horizontal fifths: outerL, eyeWidthL, interEye, eyeWidthR, outerR
+  const outerL = dist(lm[L.cheekLeft], lm[L.eyeLOuter]);
+  const eyeWL = dist(lm[L.eyeLOuter], lm[L.eyeLInner]);
+  const interEye = dist(lm[L.eyeLInner], lm[L.eyeRInner]);
+  const eyeWR = dist(lm[L.eyeRInner], lm[L.eyeROuter]);
+  const outerR = dist(lm[L.eyeROuter], lm[L.cheekRight]);
+  const fifths = [outerL, eyeWL, interEye, eyeWR, outerR];
+  const fifthsCV = stdev(fifths) / mean(fifths);
+  const fifthsScore = clampScore(10 - fifthsCV * 18);
+
+  // 4. length:width golden ratio (classic "ideal" oval ~1.618)
+  const ratio = faceHeight / faceWidth;
+  const goldenDev = Math.abs(ratio - 1.618) / 1.618;
+  const goldenScore = clampScore(10 - goldenDev * 14);
+
+  const overall = mean([symScore, thirdsScore, fifthsScore, goldenScore]);
+
+  return {
+    faceWidth, faceHeight, midX,
+    thirdsPoints: { top: lm[L.foreheadTop].y, brow: browY, nose: lm[L.noseBase].y, chin: lm[L.chin].y },
+    fifthsPoints: { a: lm[L.cheekLeft].x, b: lm[L.eyeLOuter].x, c: lm[L.eyeLInner].x, d: lm[L.eyeRInner].x, e: lm[L.eyeROuter].x, f: lm[L.cheekRight].x },
+    items: [
+      { name: "Симметрия лица", score: symScore, detail: `отклонение ${(symDeviation*100).toFixed(1)}% от ширины лица` },
+      { name: "Вертикальные трети", score: thirdsScore, detail: `лоб–брови–нос–подбородок, разброс ${(thirdsCV*100).toFixed(1)}%` },
+      { name: "Горизонтальные пятые", score: fifthsScore, detail: `расстановка глаз, разброс ${(fifthsCV*100).toFixed(1)}%` },
+      { name: "Длина / ширина лица", score: goldenScore, detail: `соотношение ${ratio.toFixed(2)} (канон 1.618)` }
+    ],
+    overall
+  };
+}
+
+function drawOverlay(lm, m){
+  ctx.save();
+  ctx.lineWidth = 1;
+
+  // midline
+  ctx.setLineDash([4,4]);
+  ctx.strokeStyle = "rgba(231,236,238,0.55)";
+  ctx.beginPath();
+  ctx.moveTo(m.midX, 0); ctx.lineTo(m.midX, canvas.height);
+  ctx.stroke();
+
+  // thirds (amber, horizontal)
+  ctx.strokeStyle = "#ffb020";
+  [m.thirdsPoints.top, m.thirdsPoints.brow, m.thirdsPoints.nose, m.thirdsPoints.chin].forEach(y => {
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
+  });
+
+  // fifths (teal, vertical)
+  ctx.strokeStyle = "#4fd1ae";
+  [m.fifthsPoints.a, m.fifthsPoints.b, m.fifthsPoints.c, m.fifthsPoints.d, m.fifthsPoints.e, m.fifthsPoints.f].forEach(x => {
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+  });
+
+  ctx.setLineDash([]);
+  // landmark dots for the points actually used
+  ctx.fillStyle = "#ffffff";
+  Object.values(L).forEach(idx => {
+    ctx.beginPath();
+    ctx.arc(lm[idx].x, lm[idx].y, 2.5, 0, Math.PI*2);
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+function overallText(v){
+  if(v >= 8.3) return "Очень ровные пропорции по всем измеренным канонам.";
+  if(v >= 6.8) return "Хорошо сбалансированные пропорции, отклонения небольшие.";
+  if(v >= 5.2) return "Умеренные отклонения от канонов — они есть почти у всех.";
+  return "Заметные отклонения от «идеальных» канонов — но это просто геометрия, не оценка внешности.";
+}
+
+function renderResults(m){
+  indexNum.innerHTML = `${m.overall.toFixed(1)}<span>/10</span>`;
+  indexLabel.textContent = overallText(m.overall);
+  metricsList.innerHTML = "";
+  m.items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'metric';
+    row.innerHTML = `
+      <div class="metric-head">
+        <span class="metric-name">${item.name}</span>
+        <span class="metric-score">${item.score.toFixed(1)}/10</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${item.score*10}%"></div></div>
+      <div class="metric-detail">${item.detail}</div>
+    `;
+    metricsList.appendChild(row);
+  });
+  resultsEl.style.display = 'block';
+}
+
+btnCamera.disabled = true;
+initModel();
+</script>
+</body>
+  </html>
+  
