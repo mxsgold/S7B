@@ -212,7 +212,7 @@
 
   <header>
     <div class="kicker">геометрический разбор //</div>
-    <h1>Скан еблища</h1>
+    <h1>Скан вашего еблища</h1>
     <p class="lede">Наводит 468 точек на фото и меряет симметрию и классические пропорции.</p>
   </header>
 
@@ -286,6 +286,8 @@ let faceLandmarker = null;
 let stream = null;
 let sourceReady = false; // true once video or image is drawable
 
+function evenify(n){ return Math.max(2, Math.round(n / 2) * 2); }
+
 function setStep(n){
   stepEls.forEach(li => li.classList.toggle('active', Number(li.dataset.step) === n));
 }
@@ -298,11 +300,13 @@ async function initModel(){
     faceLandmarker = await FaceLandmarker.createFromOptions(fileset, {
       baseOptions: {
         modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-        delegate: "GPU"
+        delegate: "CPU"
       },
       outputFaceBlendshapes: false,
       runningMode: "IMAGE",
-      numFaces: 1
+      numFaces: 1,
+      minFaceDetectionConfidence: 0.3,
+      minFacePresenceConfidence: 0.3
     });
     statusLine.textContent = "модель готова — включите камеру или загрузите фото";
     btnCamera.disabled = false;
@@ -330,17 +334,17 @@ btnCamera.addEventListener('click', async () => {
   }
 });
 
-fileInput.addEventListener('change', (e) => {
+fileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if(!file) return;
-  const img = new Image();
-  img.onload = () => {
+  try{
     stopCamera();
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
     const maxW = 640;
-    const scale = Math.min(1, maxW / img.width);
-    canvas.width = img.width * scale;
-    canvas.height = img.height * scale;
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const scale = Math.min(1, maxW / bitmap.width);
+    canvas.width = evenify(bitmap.width * scale);
+    canvas.height = evenify(bitmap.height * scale);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     video.style.display = 'none';
     canvas.style.display = 'block';
     resultsEl.style.display = 'none';
@@ -349,16 +353,18 @@ fileInput.addEventListener('change', (e) => {
     sourceReady = true;
     statusLine.textContent = "фото загружено — нажмите «Сделать снимок и проанализировать»";
     setStep(2);
-  };
-  img.src = URL.createObjectURL(file);
+  }catch(err){
+    console.error(err);
+    statusLine.textContent = "не получилось прочитать файл — попробуйте другое фото (jpg/png)";
+  }
 });
 
 btnCapture.addEventListener('click', () => {
   if(!faceLandmarker || !sourceReady) return;
 
   if(video.style.display === 'block'){
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = evenify(video.videoWidth);
+    canvas.height = evenify(video.videoHeight);
     ctx.save();
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1); // mirror to match what the user sees
@@ -369,7 +375,14 @@ btnCapture.addEventListener('click', () => {
     stopCamera();
   }
 
-  const result = faceLandmarker.detect(canvas);
+  let result;
+  try{
+    result = faceLandmarker.detect(canvas);
+  }catch(err){
+    console.error(err);
+    statusLine.textContent = "ошибка распознавания: " + err.message;
+    return;
+  }
   btnCapture.disabled = true;
   btnRetake.style.display = 'inline-block';
 
@@ -512,11 +525,24 @@ function drawOverlay(lm, m){
   ctx.restore();
 }
 
+function scoreLabel(v){
+  if(v >= 9)   return "почти эталон";
+  if(v >= 7.8) return "очень ровно";
+  if(v >= 6.5) return "хорошо, близко к канону";
+  if(v >= 5.2) return "умеренное отклонение";
+  if(v >= 4)   return "заметное отклонение";
+  if(v >= 2.5) return "сильное отклонение";
+  return "очень сильное отклонение";
+}
+
 function overallText(v){
-  if(v >= 8.3) return "Очень ровные пропорции по всем измеренным канонам.";
-  if(v >= 6.8) return "Хорошо сбалансированные пропорции, отклонения небольшие.";
+  if(v >= 9)   return "Почти эталонные пропорции по всем четырём меркам.";
+  if(v >= 7.8) return "Очень ровные пропорции, отклонения минимальны.";
+  if(v >= 6.5) return "Хорошо сбалансированные пропорции, есть небольшие отклонения.";
   if(v >= 5.2) return "Умеренные отклонения от канонов — они есть почти у всех.";
-  return "Заметные отклонения от «идеальных» канонов — но это просто геометрия, не оценка внешности.";
+  if(v >= 4)   return "Заметные отклонения от классических канонов.";
+  if(v >= 2.5) return "Сильные отклонения от «идеальных» пропорций — но это просто геометрия, не оценка внешности.";
+  return "Очень сильные отклонения по этим меркам — напомним, это условная арифметика, а не суждение о внешности.";
 }
 
 function renderResults(m){
@@ -529,7 +555,7 @@ function renderResults(m){
     row.innerHTML = `
       <div class="metric-head">
         <span class="metric-name">${item.name}</span>
-        <span class="metric-score">${item.score.toFixed(1)}/10</span>
+        <span class="metric-score">${item.score.toFixed(1)}/10 · ${scoreLabel(item.score)}</span>
       </div>
       <div class="bar-track"><div class="bar-fill" style="width:${item.score*10}%"></div></div>
       <div class="metric-detail">${item.detail}</div>
@@ -543,5 +569,4 @@ btnCamera.disabled = true;
 initModel();
 </script>
 </body>
-  </html>
-  
+</html>
