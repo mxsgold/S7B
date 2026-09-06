@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S7B — Запись на сеанс</title>
+<style>
+:root{--bg:#12161b;--panel:#181d23;--line:#2a3138;--ink:#e7ecee;--muted:#8b969e;--accent:#ffb020;--good:#4fd1ae;--bad:#ff6b6b}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Arial,sans-serif}a{color:inherit;text-decoration:none}.wrap{max-width:760px;margin:auto;padding:0 18px 70px}
+nav{position:sticky;top:0;z-index:10;margin:0 -18px 55px;padding:16px 18px;background:rgba(18,22,27,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.logo{font-weight:800;letter-spacing:.08em}.links{display:flex;gap:20px;font-size:14px;color:var(--muted)}.links a:hover{color:var(--ink)}
+.hero{padding:20px 0 65px}.tag{font:12px monospace;color:var(--accent);letter-spacing:.08em;text-transform:uppercase}.hero h1{font-size:clamp(42px,9vw,76px);line-height:.98;letter-spacing:-.05em;margin:16px 0}.hero p{max-width:560px;color:var(--muted);font-size:18px}.cta{display:inline-block;margin-top:20px;background:var(--accent);color:#201400;font-weight:800;padding:13px 18px;border:0}
+section{padding:55px 0;border-top:1px solid var(--line)}h2{font-size:30px;margin:0 0 10px}.sub{color:var(--muted);margin:0 0 25px}.card{background:var(--panel);border:1px solid var(--line);padding:24px}.field{margin-bottom:16px}.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:7px}.field input{width:100%;padding:13px 14px;background:#101419;color:var(--ink);border:1px solid var(--line);outline:0;font:inherit}.field input:focus{border-color:var(--accent)}button{width:100%;padding:14px;background:var(--accent);border:1px solid var(--accent);font-weight:800;font-size:16px;cursor:pointer}button:disabled{opacity:.55;cursor:wait}.message{display:none;margin-top:15px;padding:12px 14px;border:1px solid var(--line)}.message.good{display:block;color:var(--good)}.message.bad{display:block;color:var(--bad)}footer{padding-top:35px;color:var(--muted);font-size:13px}
+@media(max-width:560px){.links{gap:12px;font-size:12px}.hero{padding-top:0}.card{padding:18px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav><a class="logo" href="#top">S7B</a><div class="links"><a href="#about">О проекте</a><a href="#booking">Записаться</a><a href="index.html">Сканер</a></div></nav>
+<main id="top">
+<section class="hero" style="border-top:0;padding-top:0"><div class="tag">S7B // booking</div><h1>Запишись<br>на сеанс.</h1><p>Оставь имя, фамилию и номер телефона. Заявка сразу попадёт в систему записи.</p><a class="cta" href="#booking">Записаться на сеанс →</a></section>
+<section id="about"><h2>Как это работает</h2><p class="sub">Три простых шага.</p><div class="card"><p>01 — Нажимаешь «Записаться»</p><p>02 — Оставляешь контактные данные</p><p>03 — Мы получаем заявку и связываемся с тобой</p></div></section>
+<section id="booking"><h2>Запись на сеанс</h2><p class="sub">Заполни форму ниже.</p><div class="card"><form id="bookingForm"><div class="field"><label for="firstName">Имя</label><input id="firstName" name="first_name" autocomplete="given-name" maxlength="80" required placeholder="Алексей"></div><div class="field"><label for="lastName">Фамилия</label><input id="lastName" name="last_name" autocomplete="family-name" maxlength="80" required placeholder="Иванов"></div><div class="field"><label for="phone">Номер телефона</label><input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="40" required placeholder="+994 50 123 45 67"></div><button id="submitBtn" type="submit">Отправить заявку</button><div id="message" class="message"></div></form></div></section>
+</main>
+<footer>Контактные данные используются только для обработки заявки.</footer>
+</div>
+<script type="module">
+import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+const supabase=createClient('https://aaenvgxvghrvwooeqsdp.supabase.co','sb_publishable_RJTio1K51BX-hoiIXgQM9g_IvGmj1OC');
+const form=document.getElementById('bookingForm'),btn=document.getElementById('submitBtn'),msg=document.getElementById('message');
+form.addEventListener('submit',async e=>{e.preventDefault();msg.className='message';msg.textContent='';btn.disabled=true;btn.textContent='Отправляем…';const first_name=form.first_name.value.trim(),last_name=form.last_name.value.trim(),phone=form.phone.value.trim();try{const {error}=await supabase.from('bookings').insert({first_name,last_name,phone});if(error)throw error;form.reset();msg.className='message good';msg.textContent='Заявка отправлена. Скоро с вами свяжутся.'}catch(error){console.error(error);msg.className='message bad';msg.textContent='Не удалось отправить заявку. Попробуйте ещё раз.'}finally{btn.disabled=false;btn.textContent='Отправить заявку'}});
+</script>
+</body>
+</html>
