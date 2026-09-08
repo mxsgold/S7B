@@ -5,8 +5,6 @@ import android.app.AlertDialog;
 import android.os.Bundle;
 import android.graphics.*;
 import android.view.*;
-import android.view.inputmethod.InputMethodManager;
-import android.content.Context;
 import android.widget.EditText;
 import android.widget.Toast;
 
@@ -19,6 +17,7 @@ public class MainActivity extends Activity {
         view = new NexaView();
         setContentView(view);
     }
+
     @Override public void onBackPressed() {
         if (view.screen == 1 || view.screen == 2) { view.screen = 0; view.invalidate(); }
         else super.onBackPressed();
@@ -27,7 +26,8 @@ public class MainActivity extends Activity {
     class NexaView extends View {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         float den;
-        int screen = 0; // 0 home, 1 chat, 2 profile
+        int topInset = 0, bottomInset = 0;
+        int screen = 0;
         String active = "Maksim";
         String[] names = {"Maksim","Sofia","Artem","Nika","David"};
         String[] texts = {"Увидимся вечером?","Скину фото через минуту","Го в кино завтра","Ты уже дома?","Окей, договорились"};
@@ -38,23 +38,37 @@ public class MainActivity extends Activity {
             super(MainActivity.this);
             den = getResources().getDisplayMetrics().density;
             setBackgroundColor(0xff0b0b10);
-            p.setTypeface(Typeface.create("sans", Typeface.NORMAL));
+            setSystemUiVisibility(0);
+            setOnApplyWindowInsetsListener((v, insets) -> {
+                if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    android.graphics.Insets i = insets.getInsets(WindowInsets.Type.systemBars());
+                    topInset = i.top;
+                    bottomInset = i.bottom;
+                }
+                invalidate();
+                return insets;
+            });
         }
+
         float d(float x) { return x * den; }
         float dpW() { return getWidth() / den; }
-        float dpH() { return getHeight() / den; }
+        float dpH() { return (getHeight() - topInset - bottomInset) / den; }
+        float sy(float y) { return d(y) + topInset; }
+
         void rect(Canvas c,float l,float t,float r,float b,float rad,int color){
             p.setColor(color); p.setStyle(Paint.Style.FILL);
-            c.drawRoundRect(d(l),d(t),d(r),d(b),d(rad),d(rad),p);
+            c.drawRoundRect(d(l),sy(t),d(r),sy(b),d(rad),d(rad),p);
         }
         void text(Canvas c,String s,float x,float y,float size,int color,boolean bold){
             p.setColor(color); p.setTextSize(d(size));
             p.setTypeface(Typeface.create("sans", bold ? Typeface.BOLD : Typeface.NORMAL));
-            p.setStyle(Paint.Style.FILL); c.drawText(s,d(x),d(y),p);
+            p.setStyle(Paint.Style.FILL); c.drawText(s,d(x),sy(y),p);
         }
         @Override protected void onDraw(Canvas c) {
             super.onDraw(c);
+            c.save(); c.translate(0, topInset);
             if(screen == 1) drawChat(c); else if(screen == 2) drawProfile(c); else drawHome(c);
+            c.restore();
         }
         void drawHome(Canvas c) {
             float w=dpW(), h=dpH();
@@ -68,7 +82,7 @@ public class MainActivity extends Activity {
             float y=186;
             for(int i=0;i<names.length;i++){ drawRow(c,i,y); y+=72; }
             float navTop=h-66;
-            float fabY=Math.min(navTop-112, y+5);
+            float fabY=Math.max(navTop-112, y+5);
             rect(c,w-94,fabY,w-18,fabY+70,26,0xff6c63ff);
             text(c,"+",w-69,fabY+47,30,Color.WHITE,true);
             text(c,"Новый чат",w-112,fabY+98,12,0xff777786,false);
@@ -104,7 +118,6 @@ public class MainActivity extends Activity {
             rect(c,14,inputY,w-64,inputY+52,26,0xff15151d);
             text(c,"Сообщение...",35,inputY+32,15,0xff777786,false);
             rect(c,w-58,inputY+8,w-14,inputY+44,18,0xff6c63ff); text(c,"↑",w-44,inputY+33,21,Color.WHITE,true);
-            text(c,"＋",25,inputY+83,25,0xff777786,false); text(c,"⌁",77,inputY+83,25,0xff777786,false); text(c,"Камера",116,inputY+81,11,0xff777786,false);
         }
         void bubble(Canvas c,String s,float l,float t,float r,int color,boolean mine){
             p.setTextSize(d(14)); float width=Math.min(r-l, p.measureText(s)/den+34);
@@ -144,12 +157,13 @@ public class MainActivity extends Activity {
                 String s=input.getText().toString().trim();
                 if(!s.isEmpty()){ lastMessage=s; dialog.dismiss(); invalidate(); Toast.makeText(MainActivity.this,"Сообщение отправлено",Toast.LENGTH_SHORT).show(); }
             }));
-            dialog.getWindow(); dialog.show(); input.requestFocus();
+            dialog.show();
+            input.requestFocus();
             dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
         }
-        @Override public boolean onTouchEvent(android.view.MotionEvent e){
+        @Override public boolean onTouchEvent(MotionEvent e){
             if(e.getAction()!=MotionEvent.ACTION_UP) return true;
-            float x=e.getX()/den, y=e.getY()/den, w=dpW(), h=dpH();
+            float x=e.getX()/den, y=(e.getY()-topInset)/den, w=dpW(), h=dpH();
             if(screen==1){
                 if(y<75 && x<65){ screen=0; invalidate(); return true; }
                 if(y>h-95){ showMessageDialog(); return true; }
@@ -157,11 +171,11 @@ public class MainActivity extends Activity {
             }
             if(screen==2){ if(y<75){screen=0;invalidate();} return true; }
             float navTop=h-66;
-            if(y>=navTop && x>w/2+55){ screen=2; invalidate(); return true; }
-            if(y>=180 && y<540){ int i=(int)((y-186)/72); if(i>=0&&i<names.length){active=names[i];screen=1;invalidate();} return true; }
-            float fabY=Math.min(navTop-112,186+names.length*72+5);
+            if(y>=navTop && x>w/2+20){ screen=2; invalidate(); return true; }
+            if(y>=180 && y<570){ int i=(int)((y-186)/72); if(i>=0&&i<names.length){active=names[i];screen=1;invalidate();} return true; }
+            float fabY=Math.max(navTop-112,186+names.length*72+5);
             if(y>=fabY && y<fabY+110 && x>w-130){ Toast.makeText(MainActivity.this,"Новый чат — демо",Toast.LENGTH_SHORT).show(); return true; }
             return true;
         }
     }
-}"}
+}
